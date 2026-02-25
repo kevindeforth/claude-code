@@ -1,5 +1,10 @@
 ```bash
 chmod +x run-sandbox.sh
+
+# First-time setup or after Dockerfile changes — build then run:
+./run-sandbox.sh --build
+
+# Subsequent launches — skip the build, just run:
 ./run-sandbox.sh
 ```
 
@@ -15,7 +20,6 @@ curl --connect-timeout 5 https://example.com
 ```
 compare:
 ```bash
-claude --version
 whoami
 pwd
 echo $DEVCONTAINER

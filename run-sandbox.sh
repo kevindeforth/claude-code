@@ -2,15 +2,24 @@
 set -euo pipefail
 
 IMAGE=claude-dev-sandbox
+BUILD=false
 
-docker build \
-    -f ~/personal-repositories/claude-code/.devcontainer/Dockerfile \
-    -t "$IMAGE" \
-    --build-arg TZ="${TZ:-Asia/Dubai}" \
-    --build-arg CLAUDE_CODE_VERSION=latest \
-    --build-arg GIT_DELTA_VERSION=0.18.2 \
-    --build-arg ZSH_IN_DOCKER_VERSION=1.2.0 \
-    ~/personal-repositories/claude-code/.devcontainer
+for arg in "$@"; do
+  if [[ "$arg" == "--build" ]]; then
+    BUILD=true
+  fi
+done
+
+if [[ "$BUILD" == true ]]; then
+  docker build \
+      -f ~/personal-repositories/claude-code/.devcontainer/Dockerfile \
+      -t "$IMAGE" \
+      --build-arg TZ="${TZ:-Asia/Dubai}" \
+      --build-arg CLAUDE_CODE_VERSION=latest \
+      --build-arg GIT_DELTA_VERSION=0.18.2 \
+      --build-arg ZSH_IN_DOCKER_VERSION=1.2.0 \
+      ~/personal-repositories/claude-code/.devcontainer
+fi
 
 docker run --rm -it \
     --name claude-sandbox-test \
