@@ -3,6 +3,7 @@ set -euo pipefail
 
 IMAGE=claude-dev-sandbox
 BUILD=false
+CONTAINER_NAME="claude-sandbox-$(basename "$PWD" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/-*$//')"
 
 for arg in "$@"; do
   if [[ "$arg" == "--build" ]]; then
@@ -22,7 +23,7 @@ if [[ "$BUILD" == true ]]; then
 fi
 
 docker run --rm -it \
-    --name claude-sandbox-test \
+    --name "$CONTAINER_NAME" \
     --cap-add=NET_ADMIN \
     --cap-add=NET_RAW \
     -e DEVCONTAINER=true \
