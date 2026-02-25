@@ -4,13 +4,13 @@ set -euo pipefail
 IMAGE=claude-dev-sandbox
 
 docker build \
-    -f .devcontainer/Dockerfile \
+    -f ~/personal-repositories/claude-code/.devcontainer/Dockerfile \
     -t "$IMAGE" \
     --build-arg TZ="${TZ:-Asia/Dubai}" \
     --build-arg CLAUDE_CODE_VERSION=latest \
     --build-arg GIT_DELTA_VERSION=0.18.2 \
     --build-arg ZSH_IN_DOCKER_VERSION=1.2.0 \
-    .devcontainer
+    ~/personal-repositories/claude-code/.devcontainer
 
 docker run --rm -it \
     --name claude-sandbox-test \
