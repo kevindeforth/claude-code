@@ -32,6 +32,7 @@ docker run --rm -it \
     -e POWERLEVEL9K_DISABLE_GITSTATUS="true" \
     -v "$PWD":/workspace \
     -v claude-code-config-test:/home/node/.claude \
+    -v claude-code-local-test:/home/node/.local \
     -v claude-code-bashhistory-test:/commandhistory \
     -w /workspace \
     "$IMAGE" \
