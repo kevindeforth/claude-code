@@ -33,6 +33,7 @@ docker run --rm -it \
     -e GH_TOKEN="$(cat ~/.config/claude-sandbox/gh-token 2>/dev/null || true)" \
     -v "$PWD":/workspace \
     -v claude-code-config-test:/home/node/.claude \
+    -v claude-code-local-test:/home/node/.local \
     -v claude-code-bashhistory-test:/commandhistory \
     -v claude-code-docker:/var/lib/docker \
     -w /workspace \

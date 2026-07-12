@@ -149,8 +149,14 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
   -a "export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
   -x
 
-# Install Claude
-RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
+# Install Claude via the native installer so the CLI lives at
+# ~/.local/share/claude/versions/<v>/ with a symlink at ~/.local/bin/claude
+# (already on PATH via the zsh-in-docker .zshrc). The native installer
+# auto-updates in place at runtime — pair this with a volume mount on
+# /home/node/.local in run-sandbox.sh so updates persist across containers.
+# CLAUDE_CODE_VERSION is intentionally unused here; the installer always
+# fetches the current stable build.
+RUN curl -fsSL https://claude.ai/install.sh | bash
 
 # --- Cargo tools via cargo-binstall (pre-built binaries, falls back to source) ---
 RUN curl -L --proto '=https' --tlsv1.2 -sSf \
