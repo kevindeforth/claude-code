@@ -186,5 +186,7 @@ RUN chmod +x /usr/local/bin/init-firewall.sh /usr/local/bin/init-docker.sh /usr/
   { echo "node ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh"; \
     echo "node ALL=(root) NOPASSWD: /usr/local/bin/init-docker.sh"; } > /etc/sudoers.d/node-firewall && \
   chmod 0440 /etc/sudoers.d/node-firewall && \
-  git config --system credential.helper '!gh auth git-credential'
+  git config --system credential.helper '!gh auth git-credential' && \
+  git config --system user.name "kdeforth-bot" && \
+  git config --system user.email "304075123+kdeforth-bot@users.noreply.github.com"
 USER node

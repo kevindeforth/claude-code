@@ -47,9 +47,12 @@ pg-dev stop
 
 ## GitHub CLI
 
-`run-sandbox.sh` injects `GH_TOKEN` from the host's `gh auth token`, and the
-image configures `gh` as the git credential helper, so `gh` and HTTPS
-`git push` work out of the box (requires `gh auth login` on the host).
+The sandbox acts as the `kdeforth-bot` machine account, not your personal
+identity: `run-sandbox.sh` injects `GH_TOKEN` from
+`~/.config/claude-sandbox/gh-token` on the host (the bot's fine-grained PAT),
+the image bakes the bot's git author identity (system gitconfig), and `gh` is
+the git credential helper — so `gh` and HTTPS `git push` work out of the box,
+attributed to the bot.
 
 Sanity checks:
 ```bash

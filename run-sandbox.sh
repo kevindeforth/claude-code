@@ -30,7 +30,7 @@ docker run --rm -it \
     -e NODE_OPTIONS="--max-old-space-size=4096" \
     -e CLAUDE_CONFIG_DIR="/home/node/.claude" \
     -e POWERLEVEL9K_DISABLE_GITSTATUS="true" \
-    -e GH_TOKEN="$(gh auth token 2>/dev/null || true)" \
+    -e GH_TOKEN="$(cat ~/.config/claude-sandbox/gh-token 2>/dev/null || true)" \
     -v "$PWD":/workspace \
     -v claude-code-config-test:/home/node/.claude \
     -v claude-code-bashhistory-test:/commandhistory \
