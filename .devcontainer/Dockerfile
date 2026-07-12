@@ -80,6 +80,10 @@ RUN SNIPPET="export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhisto
 # Set `DEVCONTAINER` environment variable to help with orientation
 ENV DEVCONTAINER=true
 
+# The image ships no en_US.UTF-8 locale; C.UTF-8 avoids setlocale warnings
+# and initdb locale errors
+ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
+
 # Create workspace and config directories and set permissions
 RUN mkdir -p /workspace /home/node/.claude && \
   chown -R node:node /workspace /home/node/.claude

@@ -38,7 +38,9 @@ iptables -A INPUT -i lo -j ACCEPT
 iptables -A OUTPUT -o lo -j ACCEPT
 
 # Create ipset with CIDR support
-ipset create allowed-domains hash:net
+# -exist makes re-runs idempotent: the destroy above fails silently if the
+# set is still referenced, leaving stale elements behind
+ipset create -exist allowed-domains hash:net
 
 # Fetch GitHub meta information and aggregate + add their IP ranges
 echo "Fetching GitHub IP ranges..."
@@ -60,7 +62,7 @@ while read -r cidr; do
         exit 1
     fi
     echo "Adding GitHub range $cidr"
-    ipset add allowed-domains "$cidr"
+    ipset add -exist allowed-domains "$cidr"
 done < <(echo "$gh_ranges" | jq -r '(.web + .api + .git)[]' | aggregate -q)
 
 # Resolve and add other allowed domains
@@ -74,12 +76,15 @@ for domain in \
     "files.pythonhosted.org" \
     "registry-1.docker.io" \
     "auth.docker.io" \
-    "production.cloudflare.docker.com"; do
+    "production.cloudflare.docker.com" \
+    "production.cloudfront.docker.com"; do
     echo "Resolving $domain..."
     ips=$(dig +noall +answer A "$domain" | awk '$4 == "A" {print $5}')
     if [ -z "$ips" ]; then
-        echo "ERROR: Failed to resolve $domain"
-        exit 1
+        # A dead domain must not abort the script: exiting here leaves the
+        # firewall wide open (DROP policies are set further down).
+        echo "WARNING: Failed to resolve $domain, skipping"
+        continue
     fi
 
     while read -r ip; do
@@ -88,7 +93,7 @@ for domain in \
             exit 1
         fi
         echo "Adding $ip for $domain"
-        ipset add allowed-domains "$ip"
+        ipset add -exist allowed-domains "$ip"
     done < <(echo "$ips")
 done
 

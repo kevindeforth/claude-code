@@ -8,6 +8,8 @@ PGDATA="${PGDATA:-$HOME/.pgdata}"
 PGPORT="${PGPORT:-5432}"
 PGBIN="$(ls -d /usr/lib/postgresql/*/bin | sort -V | tail -1)"
 export PATH="$PGBIN:$PATH"
+# The image has no en_US.UTF-8 locale; initdb refuses invalid LC_* settings
+export LC_ALL=C.UTF-8 LANG=C.UTF-8
 
 cmd="${1:-status}"
 shift || true
@@ -16,7 +18,7 @@ case "$cmd" in
 start)
     if [ ! -f "$PGDATA/PG_VERSION" ]; then
         echo "Initializing cluster at $PGDATA..."
-        initdb -D "$PGDATA" --auth=trust --username="$USER" >/dev/null
+        initdb -D "$PGDATA" --auth=trust --username="${USER:-$(id -un)}" >/dev/null
     fi
     pg_ctl -D "$PGDATA" -l "$PGDATA/server.log" \
         -o "-p $PGPORT -k /tmp -c listen_addresses=localhost" start
