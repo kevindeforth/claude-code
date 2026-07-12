@@ -145,8 +145,16 @@ RUN cargo binstall -y \
     lychee@0.23.0 \
     near-cli-rs@0.23.6
 
-# cargo-near has no pre-built binary; use --locked to pin deps to its published Cargo.lock
-RUN cargo install --locked cargo-near@0.19.1
+# cargo-near 0.20.3 bundles cargo-near-build 0.11.3 (protocol-version-aware rustc gate),
+# which permits rustc 1.87+ when the contract targets nearcore >= 2.12. Earlier versions
+# ship cargo-near-build 0.11.1, which blanket-rejects rustc >= 1.87 and breaks modern
+# NEAR contract builds. Fetch the prebuilt Linux binary from the GitHub release to avoid
+# 0.20.3's own compile-time MSRV of 1.88, which is higher than this image's default rustc.
+ARG CARGO_NEAR_VERSION=0.20.3
+RUN ARCH=$(uname -m) && \
+    curl -L --proto '=https' --tlsv1.2 -sSf \
+      "https://github.com/near/cargo-near/releases/download/cargo-near-v${CARGO_NEAR_VERSION}/cargo-near-${ARCH}-unknown-linux-gnu.tar.gz" \
+      | tar -xz -C /usr/local/cargo/bin --strip-components=1 "cargo-near-${ARCH}-unknown-linux-gnu/cargo-near"
 
 # Python linter
 RUN pip3 install --break-system-packages ruff
