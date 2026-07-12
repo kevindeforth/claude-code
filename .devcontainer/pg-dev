@@ -1,0 +1,38 @@
+#!/bin/bash
+set -euo pipefail
+
+# Manage a dev PostgreSQL cluster owned by the current user.
+# Usage: pg-dev start|stop|status|psql [args...]
+
+PGDATA="${PGDATA:-$HOME/.pgdata}"
+PGPORT="${PGPORT:-5432}"
+PGBIN="$(ls -d /usr/lib/postgresql/*/bin | sort -V | tail -1)"
+export PATH="$PGBIN:$PATH"
+
+cmd="${1:-status}"
+shift || true
+
+case "$cmd" in
+start)
+    if [ ! -f "$PGDATA/PG_VERSION" ]; then
+        echo "Initializing cluster at $PGDATA..."
+        initdb -D "$PGDATA" --auth=trust --username="$USER" >/dev/null
+    fi
+    pg_ctl -D "$PGDATA" -l "$PGDATA/server.log" \
+        -o "-p $PGPORT -k /tmp -c listen_addresses=localhost" start
+    echo "Connect with: psql -h /tmp -p $PGPORT -d postgres"
+    ;;
+stop)
+    pg_ctl -D "$PGDATA" stop
+    ;;
+status)
+    pg_ctl -D "$PGDATA" status
+    ;;
+psql)
+    exec psql -h /tmp -p "$PGPORT" -d postgres "$@"
+    ;;
+*)
+    echo "Usage: pg-dev start|stop|status|psql [args...]" >&2
+    exit 1
+    ;;
+esac

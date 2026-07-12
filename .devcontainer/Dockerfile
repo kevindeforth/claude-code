@@ -43,7 +43,27 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   python3 \
   python3-pip \
   python3-keyring \
+  postgresql \
+  postgresql-client \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Docker engine for docker-in-docker (container must run with --privileged;
+# dockerd is started at runtime by init-docker.sh)
+RUN install -m 0755 -d /etc/apt/keyrings && \
+  curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc && \
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
+    > /etc/apt/sources.list.d/docker.list && \
+  apt-get update && apt-get install -y --no-install-recommends \
+  docker-ce \
+  docker-ce-cli \
+  containerd.io \
+  docker-buildx-plugin \
+  docker-compose-plugin \
+  && apt-get clean && rm -rf /var/lib/apt/lists/* && \
+  usermod -aG docker node
+
+# uv/uvx (Python package manager)
+COPY --from=ghcr.io/astral-sh/uv:0.8 /uv /uvx /usr/local/bin/
 
 # Ensure default node user has access to /usr/local/share
 RUN mkdir -p /usr/local/share/npm-global && \
@@ -159,10 +179,12 @@ RUN ARCH=$(uname -m) && \
 # Python linter
 RUN pip3 install --break-system-packages ruff
 
-# Copy and set up firewall script
-COPY init-firewall.sh /usr/local/bin/
+# Copy and set up firewall, docker init, and postgres helper scripts
+COPY init-firewall.sh init-docker.sh pg-dev /usr/local/bin/
 USER root
-RUN chmod +x /usr/local/bin/init-firewall.sh && \
-  echo "node ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh" > /etc/sudoers.d/node-firewall && \
-  chmod 0440 /etc/sudoers.d/node-firewall
+RUN chmod +x /usr/local/bin/init-firewall.sh /usr/local/bin/init-docker.sh /usr/local/bin/pg-dev && \
+  { echo "node ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh"; \
+    echo "node ALL=(root) NOPASSWD: /usr/local/bin/init-docker.sh"; } > /etc/sudoers.d/node-firewall && \
+  chmod 0440 /etc/sudoers.d/node-firewall && \
+  git config --system credential.helper '!gh auth git-credential'
 USER node

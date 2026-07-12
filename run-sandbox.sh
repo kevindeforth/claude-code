@@ -22,17 +22,19 @@ if [[ "$BUILD" == true ]]; then
       ~/personal-repositories/claude-code/.devcontainer
 fi
 
+# --privileged is required for docker-in-docker (dockerd inside the sandbox)
 docker run --rm -it \
     --name "$CONTAINER_NAME" \
-    --cap-add=NET_ADMIN \
-    --cap-add=NET_RAW \
+    --privileged \
     -e DEVCONTAINER=true \
     -e NODE_OPTIONS="--max-old-space-size=4096" \
     -e CLAUDE_CONFIG_DIR="/home/node/.claude" \
     -e POWERLEVEL9K_DISABLE_GITSTATUS="true" \
+    -e GH_TOKEN="$(gh auth token 2>/dev/null || true)" \
     -v "$PWD":/workspace \
     -v claude-code-config-test:/home/node/.claude \
     -v claude-code-bashhistory-test:/commandhistory \
+    -v claude-code-docker:/var/lib/docker \
     -w /workspace \
     "$IMAGE" \
-    zsh
+    zsh -c 'sudo /usr/local/bin/init-firewall.sh && sudo /usr/local/bin/init-docker.sh; exec zsh'

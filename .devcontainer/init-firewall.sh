@@ -69,7 +69,12 @@ for domain in \
     "api.anthropic.com" \
     "sentry.io" \
     "statsig.anthropic.com" \
-    "statsig.com"; do
+    "statsig.com" \
+    "pypi.org" \
+    "files.pythonhosted.org" \
+    "registry-1.docker.io" \
+    "auth.docker.io" \
+    "production.cloudflare.docker.com"; do
     echo "Resolving $domain..."
     ips=$(dig +noall +answer A "$domain" | awk '$4 == "A" {print $5}')
     if [ -z "$ips" ]; then
@@ -115,6 +120,17 @@ iptables -A OUTPUT -m set --match-set allowed-domains dst -j ACCEPT
 
 # Explicitly REJECT all other outbound traffic for immediate feedback
 iptables -A OUTPUT -j REJECT --reject-with icmp-admin-prohibited
+
+# Apply the same egress allowlist to nested containers (docker-in-docker).
+# dockerd preserves a pre-existing DOCKER-USER chain, so create it before
+# dockerd starts; without this, nested containers bypass the allowlist.
+iptables -N DOCKER-USER 2>/dev/null || iptables -F DOCKER-USER
+iptables -A DOCKER-USER -m state --state ESTABLISHED,RELATED -j ACCEPT
+iptables -A DOCKER-USER -p udp --dport 53 -j ACCEPT
+# Inter-container traffic on nested bridge networks (Docker defaults to 172.16.0.0/12)
+iptables -A DOCKER-USER -d 172.16.0.0/12 -j ACCEPT
+iptables -A DOCKER-USER -m set --match-set allowed-domains dst -j ACCEPT
+iptables -A DOCKER-USER -j REJECT --reject-with icmp-admin-prohibited
 
 echo "Firewall configuration complete"
 echo "Verifying firewall rules..."
