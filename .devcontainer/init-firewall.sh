@@ -69,11 +69,17 @@ done < <(echo "$gh_ranges" | jq -r '(.web + .api + .git)[]' | aggregate -q)
 for domain in \
     "registry.npmjs.org" \
     "api.anthropic.com" \
+    "downloads.claude.ai" \
     "sentry.io" \
     "statsig.anthropic.com" \
     "statsig.com" \
     "pypi.org" \
     "files.pythonhosted.org" \
+    "crates.io" \
+    "index.crates.io" \
+    "static.crates.io" \
+    "static.rust-lang.org" \
+    "cache.nixos.org" \
     "registry-1.docker.io" \
     "auth.docker.io" \
     "production.cloudflare.docker.com" \

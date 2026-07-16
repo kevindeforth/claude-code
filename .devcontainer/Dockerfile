@@ -101,12 +101,15 @@ ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH
 
+# 1.97.0 matches near/mpc rust-toolchain.toml; 1.87.0 kept for repos still
+# pinned lower. Other pins download on demand via rustup — static.rust-lang.org
+# is on the firewall allowlist.
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
     sh -s -- -y --no-modify-path \
-        --default-toolchain 1.87.0 \
+        --default-toolchain 1.97.0 \
         --component rustfmt,clippy,rust-analyzer,rust-src \
         --target wasm32-unknown-unknown && \
-    /usr/local/cargo/bin/rustup toolchain install 1.86.0 \
+    /usr/local/cargo/bin/rustup toolchain install 1.87.0 \
         --component rustfmt,clippy,rust-analyzer,rust-src \
         --target wasm32-unknown-unknown && \
     chown -R node:node /usr/local/rustup /usr/local/cargo
@@ -158,29 +161,32 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
 # fetches the current stable build.
 RUN curl -fsSL https://claude.ai/install.sh | bash
 
+ENV PATH="/home/node/.local/bin:${PATH}"
+
 # --- Cargo tools via cargo-binstall (pre-built binaries, falls back to source) ---
 RUN curl -L --proto '=https' --tlsv1.2 -sSf \
     https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
 
+# Version pins track near/mpc nix/cargo-tools.nix and nix/near-cli-rs.nix
 RUN cargo binstall -y \
     cargo-nextest \
     cargo-insta \
-    cargo-make@0.37.24 \
-    cargo-deny@0.19.0 \
-    cargo-shear@1.9.1 \
-    cargo-sort@2.0.2 \
-    cargo-about@0.8.4 \
-    git-cliff@2.12.0 \
-    zizmor@1.22.0 \
-    lychee@0.23.0 \
-    near-cli-rs@0.23.6
+    cargo-deny@0.19.8 \
+    cargo-shear@1.13.0 \
+    cargo-sort@2.1.4 \
+    cargo-about@0.9.0 \
+    git-cliff@2.13.1 \
+    zizmor@1.25.2 \
+    lychee@0.24.2 \
+    near-cli-rs@0.25.1
 
-# cargo-near 0.20.3 bundles cargo-near-build 0.11.3 (protocol-version-aware rustc gate),
-# which permits rustc 1.87+ when the contract targets nearcore >= 2.12. Earlier versions
-# ship cargo-near-build 0.11.1, which blanket-rejects rustc >= 1.87 and breaks modern
-# NEAR contract builds. Fetch the prebuilt Linux binary from the GitHub release to avoid
-# 0.20.3's own compile-time MSRV of 1.88, which is higher than this image's default rustc.
-ARG CARGO_NEAR_VERSION=0.20.3
+# cargo-make's prebuilt gnu binary needs a newer glibc than bookworm ships;
+# the musl build runs anywhere
+RUN cargo binstall -y --targets "$(uname -m)-unknown-linux-musl" cargo-make@0.37.24
+
+# Version tracks near/mpc nix/cargo-near.nix. Prebuilt binary from the GitHub
+# release keeps the image build off cargo-near's own MSRV.
+ARG CARGO_NEAR_VERSION=0.22.0
 RUN ARCH=$(uname -m) && \
     curl -L --proto '=https' --tlsv1.2 -sSf \
       "https://github.com/near/cargo-near/releases/download/cargo-near-v${CARGO_NEAR_VERSION}/cargo-near-${ARCH}-unknown-linux-gnu.tar.gz" \
@@ -188,6 +194,39 @@ RUN ARCH=$(uname -m) && \
 
 # Python linter
 RUN pip3 install --break-system-packages ruff
+
+# --- Nix (single-user) ---
+# near/mpc CI runs every job through `nix develop`, so nix is required for CI
+# parity (check-all-fast, nextest groups, `nix build .#mpc-contract`, ...).
+# Single-user install: /nix is owned by node, no daemon to manage in the
+# container. The nix build sandbox needs root, hence sandbox = false; runtime
+# downloads (cache.nixos.org, static.crates.io, static.rust-lang.org) are on
+# the firewall allowlist. Pair with a volume mount on /nix in run-sandbox.sh
+# so store paths built at runtime persist across containers.
+USER root
+RUN mkdir -m 0755 /nix && chown node:node /nix
+USER node
+RUN curl -fsSL https://nixos.org/nix/install -o /tmp/install-nix && \
+    USER=node sh /tmp/install-nix --no-daemon && \
+    rm /tmp/install-nix && \
+    mkdir -p /home/node/.config/nix && \
+    printf 'experimental-features = nix-command flakes\nsandbox = false\n' \
+      > /home/node/.config/nix/nix.conf
+USER root
+RUN echo '[ -e /home/node/.nix-profile/etc/profile.d/nix.sh ] && . /home/node/.nix-profile/etc/profile.d/nix.sh' >> /etc/zsh/zshenv
+USER node
+
+# Pre-build the near/mpc dev shell into the image so the first `nix develop`
+# in the sandbox doesn't spend ~30+ min compiling the pinned cargo tools from
+# source. Tracks mpc main as of image build time; if the lock drifts later the
+# runtime cost is an incremental rebuild, not a failure. Disable with
+# --build-arg PRIME_MPC_NIX=false for a faster image build.
+ARG PRIME_MPC_NIX=true
+RUN if [ "$PRIME_MPC_NIX" = "true" ]; then \
+      . /home/node/.nix-profile/etc/profile.d/nix.sh && \
+      nix develop github:near/mpc --command true \
+        || echo "WARNING: priming the mpc dev shell failed; the first nix develop will build it instead"; \
+    fi
 
 # Copy and set up firewall, docker init, and postgres helper scripts
 COPY init-firewall.sh init-docker.sh pg-dev /usr/local/bin/
