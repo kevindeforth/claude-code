@@ -236,6 +236,11 @@ RUN chmod +x /usr/local/bin/init-firewall.sh /usr/local/bin/init-docker.sh /usr/
     echo "node ALL=(root) NOPASSWD: /usr/local/bin/init-docker.sh"; } > /etc/sudoers.d/node-firewall && \
   chmod 0440 /etc/sudoers.d/node-firewall && \
   git config --system credential.helper '!gh auth git-credential' && \
+  # Mounted repos keep their SSH remotes (the host pushes over SSH); the
+  # container has no SSH keys, so rewrite to HTTPS + GH_TOKEN instead of
+  # editing the shared .git/config
+  git config --system url."https://github.com/".insteadOf "git@github.com:" && \
+  git config --system --add url."https://github.com/".insteadOf "ssh://git@github.com/" && \
   git config --system user.name "kdeforth-bot" && \
   git config --system user.email "304075123+kdeforth-bot@users.noreply.github.com"
 USER node
