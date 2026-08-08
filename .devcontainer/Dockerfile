@@ -114,12 +114,16 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
         --target wasm32-unknown-unknown && \
     chown -R node:node /usr/local/rustup /usr/local/cargo
 
-# Bake NEAR/Rust build env vars into the image using detected clang paths
+# Bake NEAR/Rust build env vars into the image using detected clang paths.
+# LIBCLANG_PATH must point at the dir holding libclang.so (bindgen/clang-sys
+# search it while building RocksDB's zstd-sys); locate the .so directly instead
+# of deriving it from clang -print-resource-dir, whose parent is .../lib/clang
+# (one level too deep — libclang.so lives in .../lib).
 RUN CLANG_RESOURCE_DIR=$(clang -print-resource-dir) && \
-    LLVM_LIB=$(dirname "$CLANG_RESOURCE_DIR") && \
+    LIBCLANG_PATH=$(dirname "$(find /usr/lib /usr/lib64 -name 'libclang.so*' 2>/dev/null | head -n1)") && \
     cat >> /etc/zsh/zshenv <<EOF
 # NEAR/Rust build environment
-export LIBCLANG_PATH=${LLVM_LIB}
+export LIBCLANG_PATH=${LIBCLANG_PATH}
 export CC_wasm32_unknown_unknown=/usr/bin/clang
 export AR_wasm32_unknown_unknown=/usr/bin/llvm-ar
 export CFLAGS_wasm32_unknown_unknown="-I${CLANG_RESOURCE_DIR}/include"
@@ -191,6 +195,32 @@ RUN ARCH=$(uname -m) && \
     curl -L --proto '=https' --tlsv1.2 -sSf \
       "https://github.com/near/cargo-near/releases/download/cargo-near-v${CARGO_NEAR_VERSION}/cargo-near-${ARCH}-unknown-linux-gnu.tar.gz" \
       | tar -xz -C /usr/local/cargo/bin --strip-components=1 "cargo-near-${ARCH}-unknown-linux-gnu/cargo-near"
+
+# Pre-fetch the near-sandbox binary that near-workspaces pulls from S3 the first
+# time a sandbox test runs. The runtime firewall blocks S3, but `docker build`
+# has open network, so fetch it here and point NEAR_SANDBOX_BIN_PATH at it (that
+# var short-circuits near-sandbox's download when it names an existing file).
+# 2.12.0 = near-sandbox 0.3.11's DEFAULT_NEAR_SANDBOX_VERSION (nearcore v2.12.0),
+# which near/mpc's near-workspaces 0.22.4 requests on its default path — bump
+# both together if mpc's near-workspaces pin moves. URL scheme mirrors
+# near-sandbox-rs src/runner/mod.rs::bin_url.
+ARG NEAR_SANDBOX_VERSION=2.12.0
+USER root
+RUN case "$(uname -m)" in \
+      x86_64) NS_PLATFORM=Linux-x86_64 ;; \
+      aarch64) NS_PLATFORM=Linux-aarch64 ;; \
+      *) echo "unsupported arch $(uname -m) for near-sandbox" >&2; exit 1 ;; \
+    esac && \
+    mkdir -p /opt/near-sandbox /tmp/ns && \
+    curl -fL --proto '=https' --tlsv1.2 -sSf \
+      "https://s3-us-west-1.amazonaws.com/build.nearprotocol.com/nearcore/${NS_PLATFORM}/${NEAR_SANDBOX_VERSION}/near-sandbox.tar.gz" \
+      | tar -xz -C /tmp/ns && \
+    find /tmp/ns -type f -name near-sandbox -exec install -m 0755 {} /opt/near-sandbox/near-sandbox \; && \
+    rm -rf /tmp/ns && \
+    test -x /opt/near-sandbox/near-sandbox
+USER node
+# near-workspaces/near-sandbox read this at test time and skip the S3 download.
+ENV NEAR_SANDBOX_BIN_PATH=/opt/near-sandbox/near-sandbox
 
 # Python linter
 RUN pip3 install --break-system-packages ruff
