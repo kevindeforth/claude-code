@@ -83,9 +83,36 @@ for domain in \
     "registry-1.docker.io" \
     "auth.docker.io" \
     "production.cloudflare.docker.com" \
-    "production.cloudfront.docker.com"; do
+    "production.cloudfront.docker.com" \
+    `# resw: Swiss GTFS feed, geocoding, OSM extract` \
+    "data.opentransportdata.swiss" \
+    "opentransportdata.swiss" \
+    "api3.geo.admin.ch" \
+    "planet.osm.ch" \
+    `# The feed permalink 302s to presigned R2 storage, which serves the actual` \
+    `# zip. A wildcard is impossible here and also unnecessary: ipset matches on` \
+    `# IP, every *.eu.r2 name resolves to one anycast pool and the apex plus all` \
+    `# other regions to a second, so these two entries cover any account id.` \
+    "83025b28472d6aa2bf5ae59f3724aa78.eu.r2.cloudflarestorage.com" \
+    "r2.cloudflarestorage.com" \
+    `# resw, non-blocking: OJP journey planner, bulk geo, older feeds, spec PDF` \
+    "api.opentransportdata.swiss" \
+    "data.geo.admin.ch" \
+    "archive.opentransportdata.swiss" \
+    "www.oev-info.ch"; do
     echo "Resolving $domain..."
-    ips=$(dig +noall +answer A "$domain" | awk '$4 == "A" {print $5}')
+    # CDN aliases (api3.geo.admin.ch is CloudFront, 60s TTL) hand out a rotating
+    # subset of edge IPs, and this resolution is pinned for the container's
+    # lifetime. Different resolvers sit in different locations and return
+    # different edges, so union them; repeating one resolver would not help,
+    # since it answers from cache within the TTL. The public ones are
+    # best-effort - bounded and allowed to fail, leaving the default resolver's
+    # answer on its own, which is the behaviour without them.
+    ips=$({ dig +noall +answer A "$domain"
+            for resolver in "@1.1.1.1" "@8.8.8.8"; do
+                dig +noall +answer +time=2 +tries=1 "$resolver" A "$domain" 2>/dev/null || true
+            done
+          } | awk '$4 == "A" {print $5}' | sort -u)
     if [ -z "$ips" ]; then
         # A dead domain must not abort the script: exiting here leaves the
         # firewall wide open (DROP policies are set further down).
